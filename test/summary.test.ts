@@ -32,6 +32,17 @@ describe("EFT 프로필", () => {
     expect(parseEft({ pmcStats: { eft: { overAllCounters: { Items: [{ Key: ["Sessions", "Pmc"], Value: 3 }] } } } }).mia).toBe(0);
   });
 
+  it("리그 등급, 배틀패스, 시즌 퀘스트 보상을 읽음", () => {
+    const s = parseEft(fx("pvp-season", 1001));
+    expect(s.league).toEqual({ rank: 4, max: 5 });
+    expect(s.pass).toEqual({ done: 41, total: 53 });
+    expect(s.seasonRewards).toEqual({ done: 4, total: 5 });
+    const pvp = parseEft(fx("profile", 1001));
+    expect(pvp.league).toBeNull();
+    expect(pvp.pass).toEqual({ done: 41, total: 53 });
+    expect(parseEft(fx("pvp-season", 1002))).toMatchObject({ league: null, pass: null, seasonRewards: null });
+  });
+
   it("레벨은 tarkov.dev 화면과 같음", () => {
     // 9706 계정을 tarkov.dev에서 열었을 때 레벨 29
     expect(parseEft(fx("profile", 1003)).level).toBe(29);
@@ -66,6 +77,14 @@ describe("아레나 프로필", () => {
     const sum = s.modes.reduce((a, m) => a + m.stats.kills, 0);
     expect(s.total!.kills).toBe(sum);
     expect(s.total!.maxGameKills).toBe(Math.max(...s.modes.map((m) => m.stats.maxGameKills)));
+  });
+  it("배틀패스 단계를 최근 시즌부터 읽음", () => {
+    expect(parseArena(fx("arena", 1003)).passes).toEqual([
+      { id: "6a7ef35bf1520fccd107be5d", level: 91 },
+      { id: "69cd05d6ddad8594db0700ca", level: 100 },
+      { id: "68c7f09ef2c815c21c0ab1fc", level: 120 },
+      { id: "67b8ac64cfb91e762e03ef32", level: 150 },
+    ]);
   });
   it("판정용 표본으로 바꿈", () => {
     const s = toSample(parseArena(fx("arena", 1002)))!;

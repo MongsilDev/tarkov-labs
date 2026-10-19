@@ -40,7 +40,12 @@ export type EftSummary = Base & {
   skills?: { id: string; level: number }[];
   mastery?: { id: string; progress: number }[];
   gear?: { slot: string; tpl: string }[];
+  league?: { rank: number; max: number } | null;
+  pass?: Progress | null;
+  seasonRewards?: Progress | null;
 };
+
+export type Progress = { done: number; total: number };
 
 export type ArenaModeStats = {
   games: number;
@@ -65,6 +70,7 @@ export type ArenaSummary = Base & {
   registered: number | null;
   total: ArenaModeStats | null;
   modes: { key: string; stats: ArenaModeStats }[];
+  passes?: { id: string; level: number }[];
 };
 
 export type Summary = EftSummary | ArenaSummary;
@@ -72,6 +78,12 @@ export type Summary = EftSummary | ArenaSummary;
 const num = (v: unknown): number | null => (typeof v === "number" && Number.isFinite(v) ? v : null);
 const obj = (v: unknown): Record<string, unknown> => (v && typeof v === "object" && !Array.isArray(v) ? (v as Record<string, unknown>) : {});
 const arr = (v: unknown): unknown[] => (Array.isArray(v) ? v : []);
+const progress = (v: unknown): Progress | null => {
+  const o = obj(v);
+  const done = num(o.completed);
+  const total = num(o.total);
+  return done != null && total ? { done, total } : null;
+};
 
 export function levelFromExp(exp: number | null): number | null {
   if (exp == null || exp < 0) return null;
@@ -140,6 +152,10 @@ export function parseEft(raw: unknown): EftSummary {
       ? { raids: sc("Sessions/Scav"), survived: sc("ExitStatus/Survived/Scav"), kia: sc("ExitStatus/Killed/Scav"), kills: sc("Kills"), pmcKills: sc("KilledPmc") }
       : null,
     perks: arr(p.selectedSeasonalPerkIds).filter((x): x is string => typeof x === "string"),
+    // 리그는 시즌 프로필에만 있고 첫 레이드 전에는 null. 배틀패스와 시즌 퀘스트 보상은 계정 전체 값
+    league: num(info.leagueRank) ? { rank: num(info.leagueRank)!, max: Math.max(num(info.leagueMaxRank) ?? 0, num(info.leagueRank)!) } : null,
+    pass: progress(arr(p.battlePassProgress)[0]),
+    seasonRewards: progress(p.seasonalRewards),
     ...gearAndSkills(p),
   };
 }
@@ -218,6 +234,10 @@ export function parseArena(raw: unknown): ArenaSummary {
     registered: num(info.registrationDate),
     total,
     modes,
+    passes: Object.entries(obj(info.battlePassesLevels))
+      .map(([id, v]) => ({ id, level: num(v) ?? 0 }))
+      .filter((x) => x.level > 0)
+      .sort((a, b) => (a.id < b.id ? 1 : -1)),
   };
 }
 

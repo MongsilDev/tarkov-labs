@@ -101,8 +101,9 @@ const SCREENS: Screen[] = [
   { name: "홈", path: "/" },
   { name: "계정 조회", path: "/players" },
   { name: "프로필 PvP", path: "/players/1001?mode=pvp" },
+  { name: "프로필 시즌", path: "/players/1001?mode=season" },
   { name: "프로필 PvE", path: "/players/1003?mode=pve" },
-  { name: "프로필 아레나", path: "/players/1002?mode=arena" },
+  { name: "프로필 아레나", path: "/players/1003?mode=arena" },
   { name: "기록 없는 모드", path: "/players/1001?mode=arena" },
   { name: "숨긴 계정", path: "/players/1004" },
   { name: "판정 기준", path: "/criteria" },
@@ -198,7 +199,7 @@ describe("화면 점검", () => {
   });
 
   it("시뮬레이터는 포인트를 계산하고 빌드를 주소로 되살린다", async () => {
-    const { page } = await open(SCREENS[9], 390, "dark");
+    const { page } = await open(SCREENS[10], 390, "dark");
     const left = page.locator(".kb-left dd");
     await page.getByRole("button", { name: /플리마켓 금지령/ }).click();
     await expect(left.textContent()).resolves.toBe("10");
@@ -242,6 +243,25 @@ describe("화면 점검", () => {
     await page.waitForURL(/\/kord-breach\?b=/);
     await page.locator(".kb-left dd").waitFor();
     await expect(page.locator('.kb-card[aria-pressed="true"]').count()).resolves.toBe(n);
+    await page.context().close();
+  });
+
+  it("시즌 진행과 아레나 배틀패스를 보여준다", async () => {
+    const { page } = await open(SCREENS[2], 1440, "dark");
+    await page.goto(`${base}/players/1001?mode=season`, { waitUntil: "networkidle" });
+    const progs = page.locator(".prog");
+    await expect(progs.allInnerTexts()).resolves.toEqual([
+      expect.stringContaining("루스리스 IV"),
+      expect.stringContaining("41 / 53"),
+      expect.stringContaining("4 / 5"),
+    ]);
+    await expect(page.locator(".league li.on").count()).resolves.toBe(4);
+    await page.getByText("최고 등급 리본 V").waitFor();
+    await page.goto(`${base}/players/1001?mode=pvp`, { waitUntil: "networkidle" });
+    await expect(progs.count()).resolves.toBe(2);
+    await page.goto(`${base}/players/1003?mode=arena`, { waitUntil: "networkidle" });
+    await expect(page.locator(".prog-label").allInnerTexts()).resolves.toEqual([expect.stringMatching(/^시즌 3\s*진행 중$/), "시즌 2", "시즌 1", "시즌 0"]);
+    await expect(page.locator(".prog.done").count()).resolves.toBe(3);
     await page.context().close();
   });
 

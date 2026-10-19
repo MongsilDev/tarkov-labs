@@ -18,7 +18,8 @@ import { arenaModeLabel, memberChips, sideLabel } from "@/lib/labels";
 import { MODES, pickMode, tarkovDevUrl } from "@/lib/modes";
 import { toSample } from "@/lib/sample";
 import { PERK, encodeBuild, type Perk } from "@/lib/kord";
-import { achievementInfo, type ArenaSummary, type EftSummary, type Summary } from "@/lib/summary";
+import { ARENA_PASSES, LEAGUE, leagueLabel } from "@/lib/season";
+import { achievementInfo, type ArenaSummary, type EftSummary, type Progress, type Summary } from "@/lib/summary";
 import { verdict } from "@/server/baseline";
 import { isHidden } from "@/server/db";
 import { account, displayName, load, nameHistory, snapshots } from "@/server/profiles";
@@ -276,6 +277,85 @@ function Scav({ s }: { s: EftSummary }) {
   );
 }
 
+function Bar({ value, max }: { value: number; max: number }) {
+  return (
+    <span className="meter" aria-hidden="true">
+      <span style={{ width: `${Math.min(100, (value / max) * 100)}%` }} />
+    </span>
+  );
+}
+
+function ProgressCard({ label, p, note }: { label: string; p: Progress; note: string }) {
+  return (
+    <div className={p.done >= p.total ? "prog done" : "prog"}>
+      <span className="prog-label">{label}</span>
+      <b className="num">
+        {p.done} <span className="muted">/ {p.total}</span>
+      </b>
+      <Bar value={p.done} max={p.total} />
+      <span className="small muted">{p.done >= p.total ? "모두 받음" : note}</span>
+    </div>
+  );
+}
+
+function SeasonProgress({ s }: { s: EftSummary }) {
+  const { league, pass, seasonRewards } = s;
+  if (!league && !pass && !seasonRewards) return null;
+  return (
+    <section className="block">
+      <h2 className="h2">KORD BREACH 시즌 진행</h2>
+      <div className="progs">
+        {league && (
+          <div className="prog rank">
+            <span className="prog-label">리그 등급</span>
+            <b>{leagueLabel(league.rank)}</b>
+            <ol className="league" aria-hidden="true">
+              {LEAGUE.map((n, i) => (
+                <li key={n} className={i + 1 <= league.rank ? "on" : i + 1 <= league.max ? "peak" : undefined} />
+              ))}
+            </ol>
+            <span className="small muted">{league.max > league.rank ? `최고 등급 ${leagueLabel(league.max)}` : "주간 경험치 순위로 결정"}</span>
+          </div>
+        )}
+        {pass && <ProgressCard label="배틀패스" p={pass} note="모든 모드 공통" />}
+        {seasonRewards && <ProgressCard label="시즌 퀘스트 보상" p={seasonRewards} note="시즌 퀘스트를 끝내면 받음" />}
+      </div>
+    </section>
+  );
+}
+
+// id 앞부분이 생성 시각이라 문자열 비교가 시즌 순서와 같음
+const LATEST_ARENA_PASS = Object.keys(ARENA_PASSES).sort().at(-1)!;
+
+function ArenaPasses({ s }: { s: ArenaSummary }) {
+  const list = s.passes ?? [];
+  if (!list.length) return null;
+  return (
+    <section className="block">
+      <h2 className="h2">배틀패스</h2>
+      <ul className="progs">
+        {list.map((x, i) => {
+          const def = ARENA_PASSES[x.id];
+          return (
+            <li key={x.id} className={def && x.level >= def.levels ? "prog done" : "prog"}>
+              <span className="prog-label">
+                {def ? `시즌 ${def.season}` : "새 시즌"}
+                {i === 0 && x.id >= LATEST_ARENA_PASS && <span className="chip">진행 중</span>}
+              </span>
+              <b className="num">
+                {x.level}
+                {def && <span className="muted"> / {def.levels}</span>}
+              </b>
+              {def && <Bar value={x.level} max={def.levels} />}
+              <span className="small muted num">{def ? `${def.start} 시작` : "단계 수 미확인"}</span>
+            </li>
+          );
+        })}
+      </ul>
+    </section>
+  );
+}
+
 function SeasonPerks({ ids }: { ids: string[] }) {
   const picked = ids.map((id) => PERK.get(id)).filter((p): p is Perk => p != null && p.points != null);
   if (!picked.length) return null;
@@ -484,6 +564,8 @@ export default async function Profile({ params, searchParams }: Props) {
           <>
             {v && <Verdict v={v} mode={mode.key} official={chips.some((c) => c.official)} />}
             {s.kind === "eft" ? <EftStats s={s} /> : <ArenaStats s={s} />}
+            {eft && <SeasonProgress s={eft} />}
+            {s.kind === "arena" && <ArenaPasses s={s} />}
             {eft?.perks?.length ? <SeasonPerks ids={eft.perks} /> : null}
             {eft && <Scav s={eft} />}
             {eft && <Gear s={eft} />}
